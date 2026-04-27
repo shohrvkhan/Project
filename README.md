@@ -1,4 +1,4 @@
-# Double Ratchet PQC Benchmarking Suite
+# Double Ratchet Post-Quantum Cryptography Benchmarking Suite
 
 > **Portfolio Project:** Applied Cryptographic Protocols for Trap-Resilient Communication Channels
 > **Author:** Shohruhbek Axmadjonov
