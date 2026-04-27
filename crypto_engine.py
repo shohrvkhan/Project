@@ -554,6 +554,7 @@ class DoubleRatchet:
             "ratcheted": ratcheted,
             "ratchet_step": receiver.ratchet_step,
             "msg_key_hex": msg_key.hex(),
+            "skipped_key_used": False,
         }
 
     # ---- compromise --------------------------------------------------------
@@ -661,9 +662,40 @@ def run_benchmark(n_iterations: int = 10) -> dict:
             **h_meta["timing"],
         })
 
+    avg_classical_ms = sum(r["total_ms"] for r in classical_results) / n_iterations
+    avg_hybrid_ms = sum(r["total_ms"] for r in hybrid_results) / n_iterations
+
     return {
         "n": n_iterations,
         "pqc_real": KyberKEM.is_real(),
         "classical": classical_results,
         "hybrid": hybrid_results,
+        "avg_classical_ms": round(avg_classical_ms, 4),
+        "avg_hybrid_ms": round(avg_hybrid_ms, 4),
+        "classical_payload_bytes": 32,
+        "hybrid_payload_bytes": 32 + KyberKEM.PK_SIZE + KyberKEM.CT_SIZE,
+    }
+
+
+def benchmark_handshake() -> dict:
+    """
+    Perform a single hybrid handshake and return benchmark metrics.
+
+    Returns a dict with:
+      - execution_time_ms : float — total handshake wall-clock time in milliseconds
+      - ciphertext_size_bytes : int — PQC KEM ciphertext size in bytes
+      - pqc_real : bool — whether real ML-KEM-768 via liboqs was used
+      - breakdown : dict — per-phase timings (ecc_ms, keygen_ms, encaps_ms, decaps_ms, hkdf_ms)
+    """
+    t0 = time.perf_counter()
+    root_key, meta = HybridKeySetup.perform()
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    return {
+        "execution_time_ms": round(elapsed_ms, 4),
+        "ciphertext_size_bytes": KyberKEM.CT_SIZE,
+        "pqc_real": KyberKEM.is_real(),
+        "pqc_kem": meta.get("pqc_kem", "unknown"),
+        "root_key_hex": root_key.hex(),
+        "breakdown": meta.get("timing", {}),
     }

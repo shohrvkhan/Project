@@ -17,7 +17,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from crypto_engine import (
     DoubleRatchet, kdf_rk, kdf_ck, aead_decrypt, aead_encrypt,
-    run_benchmark, KyberKEM, OQS_AVAILABLE,
+    run_benchmark, benchmark_handshake, KyberKEM, OQS_AVAILABLE,
 )
 import os
 
@@ -106,6 +106,42 @@ def api_send():
         "plaintext": plaintext,
         "envelope": envelope,
         "decryption": result,
+        "alice_state": ratchet.alice.snapshot(),
+        "bob_state": ratchet.bob.snapshot(),
+    })
+
+
+@app.route("/api/send_out_of_order", methods=["POST"])
+def api_send_out_of_order():
+    """
+    Simulate sending two messages but delivering them out of order.
+    """
+    data = request.get_json(force=True)
+    sender = data["sender"]
+    receiver = "Bob" if sender == "Alice" else "Alice"
+
+    ratchet: DoubleRatchet = session["ratchet"]
+
+    # 1. Encrypt Message 1
+    envelope1 = ratchet.send(sender, f"[{sender}] Msg 1 (Delayed)")
+    # 2. Encrypt Message 2
+    envelope2 = ratchet.send(sender, f"[{sender}] Msg 2 (Arrives first)")
+
+    session["envelopes"].extend([envelope1, envelope2])
+
+    # 3. Receive Message 2 first
+    result2 = ratchet.receive(receiver, envelope2)
+    # 4. Receive Message 1 later
+    result1 = ratchet.receive(receiver, envelope1)
+
+    return jsonify({
+        "ok": True,
+        "sender": sender,
+        "receiver": receiver,
+        "envelope1": envelope1,
+        "envelope2": envelope2,
+        "decryption2": result2,
+        "decryption1": result1,
         "alice_state": ratchet.alice.snapshot(),
         "bob_state": ratchet.bob.snapshot(),
     })
